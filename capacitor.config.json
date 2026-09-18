@@ -1,0 +1,13 @@
+{
+  "appId": "com.fito.portaliptv",
+  "appName": "Portal IPTV FITO",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}
