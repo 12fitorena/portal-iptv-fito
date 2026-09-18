@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portal IPTV FITO — reproductor IPTV (funcional)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.15/hls.min.js"></script>
+<style>
+  :root{
+    --bg:#0a0c10; --bg-raise:#12151b; --surface:rgba(25,30,39,0.66); --surface-2:rgba(33,39,52,0.66);
+    --line:#2a3040; --text:#eef1f6; --text-dim:#8d97a9;
+    --accent:#39ff9d; --accent-dim:rgba(57,255,157,0.14);
+    --accent-2:#b15cff; --accent-2-dim:rgba(177,92,255,0.16);
+    --danger:#ff5f6d; --danger-dim:rgba(255,95,109,0.14);
+    --focus-ring: 0 0 0 3px var(--bg), 0 0 0 6px var(--accent);
+  }
+  :root:not([data-theme="light"]){ color-scheme: dark; }
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --bg:#f3f1ec; --bg-raise:#fff; --surface:#fff; --surface-2:#eae6da; --line:#dcd6c8;
+      --text:#191a1c; --text-dim:#6c675b; --accent:#0fb573; --accent-dim:rgba(15,181,115,.12);
+      --accent-2:#8a3fe0; --accent-2-dim:rgba(138,63,224,.12); color-scheme:light;
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#f3f1ec; --bg-raise:#fff; --surface:#fff; --surface-2:#eae6da; --line:#dcd6c8;
+    --text:#191a1c; --text-dim:#6c675b; --accent:#0fb573; --accent-dim:rgba(15,181,115,.12);
+    --accent-2:#8a3fe0; --accent-2-dim:rgba(138,63,224,.12); color-scheme:light;
+  }
+  :root[data-theme="dark"]{ color-scheme: dark; }
+
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{ background:var(--bg); color:var(--text); font-family:'Manrope',system-ui,sans-serif;
+    min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:28px 16px 60px; }
+  h1,h2,h3{ font-family:'Fraunces',serif; font-weight:500; margin:0; }
+
+  .lab-bar{ width:100%; max-width:1180px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:22px; }
+  .brand{ display:flex; align-items:center; gap:10px; }
+  .brand-mark{ width:34px; height:34px; border-radius:9px; background:linear-gradient(160deg,var(--accent),var(--accent-2));
+    display:flex; align-items:center; justify-content:center; font-family:'Fraunces',serif; font-weight:600; color:#08110d; font-size:18px; }
+  .brand-text{ font-family:'Fraunces',serif; font-size:19px; color:#eafff2; letter-spacing:.3px;
+    animation: neonPulse 2.4s ease-in-out infinite; }
+  @keyframes neonPulse{
+    0%,100%{ text-shadow: 0 0 6px rgba(57,255,157,.85), 0 0 14px rgba(57,255,157,.55), 0 0 28px rgba(177,92,255,.35); }
+    50%{ text-shadow: 0 0 13px rgba(57,255,157,1), 0 0 28px rgba(57,255,157,.9), 0 0 50px rgba(177,92,255,.65); }
+  }
+  .brand-sub{ font-size:12px; color:var(--text-dim); margin-top:1px; }
+
+  .segmented{ display:flex; background:var(--bg-raise); border:1px solid var(--line); border-radius:10px; padding:3px; gap:2px; }
+  .segmented button{ border:none; background:transparent; color:var(--text-dim); font-family:'Manrope'; font-size:13px; font-weight:600; padding:7px 14px; border-radius:7px; cursor:pointer; }
+  .segmented button.active{ background:var(--accent); color:#08110d; }
+  .segmented button:focus-visible{ box-shadow:var(--focus-ring); outline:none; }
+
+  .stage{ width:100%; display:flex; justify-content:center; }
+  .device{ background:var(--bg-raise); border:1px solid var(--line); overflow:hidden; position:relative;
+    transition:width .35s ease,height .35s ease,border-radius .35s ease; box-shadow:0 30px 70px -25px rgba(0,0,0,.7); }
+  .device.tv{ width:min(1180px,94vw); height:min(660px,72vh); border-radius:14px; }
+  .device.mobile{ width:min(380px,92vw); height:min(760px,78vh); border-radius:36px; padding:10px; }
+  .device.mobile .screen{ border-radius:26px; }
+  .screen{ width:100%; height:100%; position:relative; overflow:hidden; background:var(--bg); }
+
+  .view{ position:absolute; inset:0; padding:5% 5.5%; display:none; flex-direction:column; z-index:2;
+    overflow-y:auto; -webkit-overflow-scrolling:touch; }
+  .view.active{ display:flex; }
+
+  .hero-bg{ position:absolute; inset:0; z-index:0; overflow:hidden; }
+  .hero-bg svg{ width:100%; height:100%; }
+  .hero-scrim{ position:absolute; inset:0; z-index:1;
+    background:linear-gradient(180deg, rgba(10,12,16,.3) 0%, rgba(10,12,16,.55) 55%, rgba(10,12,16,.86) 100%); }
+
+  .eyebrow-row{ display:flex; align-items:center; justify-content:space-between; margin-bottom:22px; gap:12px; flex-wrap:wrap; }
+  .step-note{ font-size:12.5px; color:var(--text-dim); }
+  .step-note.ok{ color:var(--accent); }
+  .step-note.err{ color:var(--danger); }
+
+  .tabs{ display:flex; gap:6px; margin-bottom:26px; border-bottom:1px solid var(--line); }
+  .tab{ background:none; border:none; color:var(--text-dim); font-family:'Manrope'; font-weight:700; font-size:14px;
+    padding:10px 4px; margin-right:22px; cursor:pointer; border-bottom:2px solid transparent; position:relative; top:1px; }
+  .tab.active{ color:var(--text); border-bottom-color:var(--accent); }
+  .tab:focus-visible{ box-shadow:var(--focus-ring); outline:none; border-radius:6px; }
+
+  .pane{ display:none; gap:28px; }
+  .pane.active{ display:flex; }
+  .pane.stack{ flex-direction:column; max-width:420px; }
+
+  label{ font-size:12.5px; color:var(--text-dim); display:block; margin-bottom:6px; }
+  .field{ margin-bottom:16px; }
+  input[type=text], input[type=password]{ width:100%; background:var(--surface); border:1px solid var(--line); color:var(--text);
+    font-family:'Manrope'; font-size:15px; padding:12px 14px; border-radius:9px; backdrop-filter:blur(10px); }
+  input:focus-visible{ box-shadow:var(--focus-ring); outline:none; border-color:var(--accent); }
+  .btn{ font-family:'Manrope'; font-weight:700; font-size:14.5px; border:none; border-radius:9px; padding:12px 20px; cursor:pointer; }
+  .btn.primary{ background:var(--accent); color:#08110d; }
+  .btn.primary:disabled{ opacity:.55; cursor:wait; }
+  .btn.primary:focus-visible{ box-shadow:var(--focus-ring); outline:none; }
+  .btn.ghost{ background:var(--surface); color:var(--text); border:1px solid var(--line); backdrop-filter:blur(10px); }
+  .helper{ font-size:12.5px; color:var(--text-dim); margin-top:14px; line-height:1.5; }
+  .banner{ font-size:12.5px; padding:10px 12px; border-radius:9px; margin-top:12px; line-height:1.5; display:none; }
+  .banner.show{ display:block; }
+  .banner.err{ background:var(--danger-dim); color:var(--danger); }
+  .banner.ok{ background:var(--accent-dim); color:var(--accent); }
+
+  .drop{ border:1.5px dashed var(--line); border-radius:12px; padding:26px 18px; text-align:center; color:var(--text-dim);
+    font-size:13.5px; background:rgba(10,12,16,.35); cursor:pointer; }
+  .drop.drag{ border-color:var(--accent); color:var(--accent); }
+
+  .qr-wrap{ display:flex; gap:26px; align-items:flex-start; }
+  .qr-box{ background:#fff; padding:14px; border-radius:12px; width:150px; height:150px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .qr-copy h3{ font-size:17px; margin-bottom:8px; }
+  .qr-copy p{ font-size:13.5px; color:var(--text-dim); line-height:1.6; max-width:340px; margin:0 0 14px; }
+  .pair-code{ font-family:'Fraunces',serif; letter-spacing:4px; font-size:22px; background:var(--surface); border:1px solid var(--line); border-radius:9px; padding:8px 14px; display:inline-block; }
+
+  .home-top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; gap:10px; flex-wrap:wrap; }
+  .home-tabs{ display:flex; gap:10px; }
+  .home-tab{ background:none; border:none; color:var(--text-dim); font-family:'Fraunces',serif; font-size:18px; padding:4px 2px; cursor:pointer; position:relative; }
+  .home-tab::after{ content:""; position:absolute; left:0; right:0; bottom:-9px; height:2px; background:transparent; border-radius:2px; }
+  .home-tab.active{ color:var(--text); }
+  .home-tab.active::after{ background:var(--accent); }
+  .status-pill{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--accent); background:var(--accent-dim); padding:5px 10px; border-radius:20px; white-space:nowrap; }
+  .status-pill.off{ color:var(--text-dim); background:var(--surface); }
+  .status-pill i{ width:6px; height:6px; border-radius:50%; background:currentColor; display:block; }
+
+  .home-pane{ display:none; flex-direction:column; flex:1; min-height:0; }
+  .home-pane.active{ display:flex; }
+
+  .chip-row{ display:flex; gap:9px; margin-bottom:20px; overflow-x:auto; padding-bottom:4px; }
+  .chip{ flex-shrink:0; background:var(--surface); border:1px solid var(--line); color:var(--text-dim); font-family:'Manrope';
+    font-size:13px; font-weight:600; padding:8px 15px; border-radius:20px; cursor:pointer; backdrop-filter:blur(10px); }
+  .chip.active{ border-color:currentColor; }
+  .chip:focus-visible{ box-shadow:var(--focus-ring); outline:none; }
+
+  .row-title{ font-size:14px; font-weight:700; margin:4px 0 12px; color:var(--text-dim); }
+  .ch-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(132px,1fr)); gap:14px; }
+  .ch-card{ background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:12px; cursor:pointer;
+    text-align:left; color:var(--text); font-family:'Manrope'; backdrop-filter:blur(10px); }
+  .ch-card:focus-visible, .ch-card.focused{ box-shadow:var(--focus-ring); outline:none; border-color:var(--accent); }
+  .ch-logo{ width:100%; height:64px; border-radius:8px; display:flex; align-items:center; justify-content:center; overflow:hidden;
+    font-family:'Manrope',sans-serif; font-weight:800; font-size:19px; color:rgba(8,17,13,.88); margin-bottom:10px; }
+  .ch-logo img{ width:100%; height:100%; object-fit:contain; background:#0e1218; }
+  .ch-name{ font-size:12.5px; font-weight:700; margin-bottom:2px; line-height:1.3; }
+  .ch-live{ font-size:11px; color:var(--text-dim); }
+
+  .poster-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(118px,1fr)); gap:14px; }
+  .poster{ background:var(--surface); border:1px solid var(--line); border-radius:10px; overflow:hidden; cursor:pointer;
+    text-align:left; color:var(--text); font-family:'Manrope'; display:flex; flex-direction:column; backdrop-filter:blur(10px); }
+  .poster:focus-visible, .poster.focused{ box-shadow:var(--focus-ring); outline:none; border-color:var(--accent); }
+  .poster-art{ height:150px; display:flex; align-items:center; justify-content:center; overflow:hidden;
+    font-family:'Manrope',sans-serif; font-weight:800; font-size:24px; color:rgba(8,17,13,.88); }
+  .poster-art img{ width:100%; height:100%; object-fit:cover; }
+  .poster-meta{ padding:8px 10px 10px; }
+  .poster-title{ font-size:12.5px; font-weight:700; line-height:1.3; }
+  .poster-sub{ font-size:11px; color:var(--text-dim); margin-top:2px; }
+
+  .empty-state{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:12px; color:var(--text-dim); padding:20px; }
+  .empty-state .btn{ margin-top:6px; }
+
+  .epg-strip{ background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px 16px; display:flex;
+    align-items:center; gap:14px; margin-top:16px; backdrop-filter:blur(10px); }
+  .epg-strip .now{ background:var(--accent-2-dim); color:var(--accent-2); font-size:11px; font-weight:700; padding:3px 9px; border-radius:6px; }
+
+  .footnote{ max-width:1180px; width:100%; margin-top:20px; font-size:12.5px; color:var(--text-dim); text-align:center; line-height:1.6; }
+  .footnote strong{ color:var(--text); }
+
+  /* reproductor modal */
+  .player-overlay{ position:fixed; inset:0; background:rgba(4,5,7,.92); z-index:50; display:none; align-items:center; justify-content:center; padding:24px; }
+  .player-overlay.show{ display:flex; }
+  .player-box{ width:100%; max-width:960px; }
+  .player-head{ display:flex; align-items:center; justify-content:space-between; color:var(--text); margin-bottom:10px; }
+  .player-head button{ background:var(--surface); border:1px solid var(--line); color:var(--text); border-radius:8px; padding:8px 14px; cursor:pointer; font-family:'Manrope'; font-weight:700; }
+  .player-video{ width:100%; max-height:70vh; background:#000; border-radius:10px; }
+  .player-msg{ color:var(--text-dim); font-size:12.5px; margin-top:10px; line-height:1.5; }
+
+  /* episodios */
+  .ep-list{ display:flex; flex-direction:column; gap:8px; margin-top:10px; max-height:260px; overflow-y:auto; }
+  .ep-item{ background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:10px 12px; cursor:pointer; text-align:left; color:var(--text); font-family:'Manrope'; font-size:13px; }
+  .ep-item:hover{ border-color:var(--accent); }
+
+  @media (max-width:640px){ .qr-wrap{ flex-direction:column; align-items:center; text-align:center; } .pane{ flex-direction:column; } }
+</style>
+</head>
+<body>
+
+  <div class="lab-bar">
+    <div class="brand">
+      <div class="brand-mark">P</div>
+      <div><div class="brand-text">Portal IPTV FITO ®️</div><div class="brand-sub">reproductor IPTV — modo funcional</div></div>
+    </div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <div class="segmented" id="deviceSwitch">
+        <button data-device="tv" class="active">Vista TV</button>
+        <button data-device="mobile">Vista celular</button>
+      </div>
+      <div class="segmented" id="screenSwitch">
+        <button data-screen="connect" class="active">Conectar</button>
+        <button data-screen="home">Inicio</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="device tv" id="device">
+      <div class="screen">
+
+        <div class="hero-bg"><svg viewBox="0 0 1200 700" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="glowG" cx="70%" cy="35%" r="60%"><stop offset="0%" stop-color="#39ff9d" stop-opacity="0.55"/><stop offset="45%" stop-color="#39ff9d" stop-opacity="0.12"/><stop offset="100%" stop-color="#39ff9d" stop-opacity="0"/></radialGradient>
+            <radialGradient id="glowP" cx="82%" cy="55%" r="50%"><stop offset="0%" stop-color="#b15cff" stop-opacity="0.5"/><stop offset="100%" stop-color="#b15cff" stop-opacity="0"/></radialGradient>
+            <linearGradient id="silhouette" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#05070a"/><stop offset="100%" stop-color="#0a0c10"/></linearGradient>
+          </defs>
+          <rect width="1200" height="700" fill="#0a0c10"/>
+          <circle cx="840" cy="260" r="420" fill="url(#glowG)"><animate attributeName="opacity" values="0.75;1;0.75" dur="4.5s" repeatCount="indefinite"/></circle>
+          <circle cx="980" cy="420" r="320" fill="url(#glowP)"><animate attributeName="opacity" values="0.7;1;0.7" dur="5.5s" repeatCount="indefinite"/></circle>
+          <g stroke="#39ff9d" stroke-opacity="0.4" stroke-width="2"><path d="M840 260 L560 90"/><path d="M840 260 L1180 120"/><path d="M840 260 L1040 60"/><path d="M840 260 L640 40"/></g>
+          <g stroke="#b15cff" stroke-opacity="0.35" stroke-width="2"><path d="M900 340 L1160 520"/><path d="M900 340 L700 600"/></g>
+          <g transform="translate(760,120)">
+            <path d="M80 60 C40 20 30 -10 60 -30 C70 -45 100 -50 110 -35 C140 -55 170 -35 165 -10 C185 -5 190 20 175 35 C190 45 190 65 175 75 L150 70 L120 90 L90 80 Z" fill="url(#silhouette)" stroke="#39ff9d" stroke-opacity="0.5" stroke-width="1.5"/>
+            <path d="M60 90 C20 130 10 200 30 280 L60 420 L100 560 L150 555 L140 400 L170 300 C200 260 220 200 200 140 C220 120 210 90 180 85 L120 90 Z" fill="url(#silhouette)" stroke="#39ff9d" stroke-opacity="0.35" stroke-width="1.5"/>
+            <path d="M60 130 C10 150 -40 200 -60 260" fill="none" stroke="#b15cff" stroke-opacity="0.55" stroke-width="10" stroke-linecap="round"/>
+            <path d="M175 120 C230 130 270 170 285 230" fill="none" stroke="#39ff9d" stroke-opacity="0.55" stroke-width="10" stroke-linecap="round"/>
+          </g>
+          <g fill="#39ff9d"><circle cx="700" cy="140" r="3"><animate attributeName="opacity" values="0.3;1;0.3" dur="2.2s" repeatCount="indefinite"/></circle><circle cx="1020" cy="90" r="2.4"><animate attributeName="opacity" values="0.2;0.9;0.2" dur="3s" repeatCount="indefinite"/></circle><circle cx="1120" cy="230" r="3.2"><animate attributeName="opacity" values="0.3;1;0.3" dur="2.6s" repeatCount="indefinite"/></circle><circle cx="880" cy="60" r="2"><animate attributeName="opacity" values="0.2;0.8;0.2" dur="3.4s" repeatCount="indefinite"/></circle></g>
+          <g fill="#b15cff"><circle cx="1080" cy="380" r="3"><animate attributeName="opacity" values="0.3;1;0.3" dur="2.8s" repeatCount="indefinite"/></circle><circle cx="950" cy="480" r="2.4"><animate attributeName="opacity" values="0.2;0.9;0.2" dur="3.2s" repeatCount="indefinite"/></circle><circle cx="780" cy="560" r="2.8"><animate attributeName="opacity" values="0.2;0.8;0.2" dur="3.8s" repeatCount="indefinite"/></circle></g>
+        </svg></div>
+        <div class="hero-scrim"></div>
+
+        <!-- CONECTAR -->
+        <section class="view active" data-view="connect">
+          <div class="eyebrow-row">
+            <h2 style="font-size:22px;">Conecta tu lista de canales</h2>
+            <span class="step-note" id="connStatus">sin fuente configurada</span>
+          </div>
+          <div class="tabs">
+            <button class="tab active" data-tab="xtream">Xtream Codes</button>
+            <button class="tab" data-tab="m3u">Lista M3U</button>
+            <button class="tab" data-tab="qr">Desde el celular</button>
+          </div>
+
+          <div class="pane stack active" data-pane="xtream">
+            <div class="field"><label>Servidor</label><input type="text" id="xtServer" placeholder="http://miservidor.com:8080"></div>
+            <div class="field"><label>Usuario</label><input type="text" id="xtUser" placeholder="usuario"></div>
+            <div class="field"><label>Contraseña</label><input type="password" id="xtPass" placeholder="••••••••"></div>
+            <button class="btn primary" id="xtConnectBtn" style="align-self:flex-start;">Conectar</button>
+            <p class="helper">Con estos tres datos, Portal consulta la API de Xtream Codes y arma tus canales, películas y series.</p>
+            <div class="banner" id="xtBanner"></div>
+          </div>
+
+          <div class="pane stack" data-pane="m3u">
+            <div class="field"><label>URL de la lista M3U</label><input type="text" id="m3uUrl" placeholder="http://ejemplo.com/lista.m3u8"></div>
+            <div style="text-align:center; color:var(--text-dim); font-size:12.5px; margin:4px 0 14px;">o</div>
+            <div class="drop" id="m3uDrop">Arrastra un archivo .m3u / .m3u8 aquí, o haz clic para seleccionarlo</div>
+            <input type="file" id="m3uFile" accept=".m3u,.m3u8,text/plain" style="display:none;">
+            <button class="btn primary" id="m3uLoadBtn" style="align-self:flex-start; margin-top:16px;">Cargar lista</button>
+            <p class="helper">La carga por archivo funciona siempre. La carga por URL depende de que el servidor de tu lista permita solicitudes desde el navegador (CORS).</p>
+            <div class="banner" id="m3uBanner"></div>
+          </div>
+
+          <div class="pane" data-pane="qr">
+            <div class="qr-wrap">
+              <div class="qr-box" id="qrBox"></div>
+              <div class="qr-copy">
+                <h3>Escanea desde tu celular</h3>
+                <p>Esta es una vista de referencia del diseño: aquí iría un código de emparejamiento real una vez el reproductor tenga un servicio propio para sincronizar dispositivos.</p>
+                <p style="margin-bottom:6px;
